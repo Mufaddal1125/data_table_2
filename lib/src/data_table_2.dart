@@ -139,6 +139,7 @@ class DataTable2 extends DataTable {
     this.lmRatio = 1.2,
     this.sortArrowAnimationDuration = const Duration(milliseconds: 150),
     this.sortArrowIcon = Icons.arrow_upward,
+    this.verticalScrollPhysics,
     required super.rows,
   })  : assert(fixedLeftColumns >= 0),
         assert(fixedTopRows >= 0) {
@@ -247,6 +248,9 @@ class DataTable2 extends DataTable {
   /// this color is static and doesn't repond to state change
   /// Note: to change background color of fixed data rows use [DataTable2.headingRowColor]
   final Color? fixedCornerColor;
+
+  /// scroll physics for the core of the table (i.e. the part that contains data rows)
+  final ScrollPhysics? verticalScrollPhysics;
 
   Widget _buildCheckbox(
       {required BuildContext context,
@@ -939,6 +943,7 @@ class DataTable2 extends DataTable {
                         child: SingleChildScrollView(
                             controller: coreVerticalController,
                             scrollDirection: Axis.vertical,
+                            physics: verticalScrollPhysics,
                             child: SingleChildScrollView(
                                 controller: coreHorizontalController,
                                 scrollDirection: Axis.horizontal,
@@ -1125,7 +1130,7 @@ class DataTable2 extends DataTable {
                 : 0.0));
 
     assert(totalFixedWidth < totalColAvailableWidth,
-        "DataTable2, combined width of columns of fixed width is greater than availble parent width. Table will be clipped");
+        "DataTable2, combined width of columns of fixed width ($totalFixedWidth) is greater than availble parent width ($totalColAvailableWidth). Table will be clipped");
 
     totalColAvailableWidth =
         math.max(0.0, totalColAvailableWidth - totalFixedWidth);
