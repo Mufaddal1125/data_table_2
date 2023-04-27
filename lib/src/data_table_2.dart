@@ -974,7 +974,7 @@ class DataTable2 extends DataTable {
                 child: Material(
                     type: MaterialType.transparency,
                     borderRadius: border?.borderRadius,
-                    clipBehavior: clipBehavior,
+                    // clipBehavior: clipBehavior,
                     child: rows.isEmpty
                         ? Column(children: [
                             SingleChildScrollView(
