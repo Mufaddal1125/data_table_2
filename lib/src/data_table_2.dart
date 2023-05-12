@@ -8,6 +8,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 bool dataTableShowLogs = true;
 
@@ -131,6 +132,7 @@ class DataTable2 extends DataTable {
     super.dividerThickness,
     this.minWidth,
     this.scrollController,
+    this.horizontalScrollController,
     this.empty,
     this.border,
     this.smRatio = 0.67,
@@ -205,6 +207,9 @@ class DataTable2 extends DataTable {
 
   /// Exposes scroll controller of the SingleChildScrollView that makes data rows vertically scrollable
   final ScrollController? scrollController;
+
+  /// Exposes scroll controller of the SingleChildScrollView that makes data rows horizontally scrollable
+  final ScrollController? horizontalScrollController;
 
   /// Placeholder widget which is displayed whenever the data rows are empty.
   /// The widget will be displayed below column
@@ -404,13 +409,13 @@ class DataTable2 extends DataTable {
       ),
     );
 
-    // Wrap label intro InkResponse if there're cell or row level tap events
+    // Wrap label with InkResponse if there're cell or row level tap events
     if (onTap != null ||
         onDoubleTap != null ||
         onLongPress != null ||
         onTapDown != null ||
         onTapCancel != null) {
-      // cell only
+      // cell level
       label = InkWell(
         onTap: () {
           onTap?.call();
@@ -426,38 +431,28 @@ class DataTable2 extends DataTable {
         },
         onTapDown: onTapDown,
         onTapCancel: onTapCancel,
+        // Also add row level events to cells
+        onSecondaryTap: onRowSecondaryTap,
+        onSecondaryTapDown: onRowSecondaryTapDown,
         overlayColor: overlayColor,
         child: label,
       );
-      label =
-          _addSecondaryTaps(onRowSecondaryTap, onRowSecondaryTapDown, label);
     } else if (onSelectChanged != null ||
         onRowTap != null ||
         onRowDoubleTap != null ||
         onRowLongPress != null ||
         onRowSecondaryTap != null ||
         onRowSecondaryTapDown != null) {
-      label = TableRowInkWell(
+      // row level
+      label = _TableRowInkWell(
         onTap: onRowTap ?? onSelectChanged,
         onDoubleTap: onRowDoubleTap,
         onLongPress: onRowLongPress,
+        onSecondaryTap: onRowSecondaryTap,
+        onSecondaryTapDown: onRowSecondaryTapDown,
         overlayColor: overlayColor,
         child: label,
       );
-
-      label =
-          _addSecondaryTaps(onRowSecondaryTap, onRowSecondaryTapDown, label);
-    }
-    return label;
-  }
-
-  Widget _addSecondaryTaps(GestureTapCallback? onRowSecondaryTap,
-      GestureTapDownCallback? onRowSecondaryTapDown, Widget label) {
-    if (onRowSecondaryTap != null || onRowSecondaryTapDown != null) {
-      label = GestureDetector(
-          onSecondaryTap: onRowSecondaryTap,
-          onSecondaryTapDown: onRowSecondaryTapDown,
-          child: label);
     }
     return label;
   }
@@ -667,6 +662,8 @@ class DataTable2 extends DataTable {
       return SyncedScrollControllers(
           scrollController: scrollController,
           sc12toSc11Position: true,
+          horizontalScrollController: horizontalScrollController,
+          sc22toSc21Position: true,
           builder: (context, sc11, sc12, sc21, sc22) {
             var coreVerticalController = sc11;
             var leftColumnVerticalContoller = sc12;
@@ -729,22 +726,22 @@ class DataTable2 extends DataTable {
                   ascending: sortAscending,
                   overlayColor: effectiveHeadingRowColor);
 
-              headingRow.children![displayColumnIndex] =
+              headingRow.children[displayColumnIndex] =
                   h; // heading row alone is used to display table header should there be no data rows
 
               if (displayColumnIndex < actualFixedColumns) {
                 if (actualFixedRows < 1) {
-                  fixedColumnsRows![0].children![displayColumnIndex] = h;
+                  fixedColumnsRows![0].children[displayColumnIndex] = h;
                 } else if (actualFixedRows > 0) {
-                  fixedCornerRows![0].children![displayColumnIndex] = h;
+                  fixedCornerRows![0].children[displayColumnIndex] = h;
                 }
               } else {
                 if (actualFixedRows < 1 && coreRows != null) {
                   coreRows[0]
-                      .children![displayColumnIndex - actualFixedColumns] = h;
+                      .children[displayColumnIndex - actualFixedColumns] = h;
                 } else if (actualFixedRows > 0) {
                   fixedRows![0]
-                      .children![displayColumnIndex - actualFixedColumns] = h;
+                      .children[displayColumnIndex - actualFixedColumns] = h;
                 }
               }
 
@@ -757,7 +754,6 @@ class DataTable2 extends DataTable {
 
               for (final DataRow row in rows) {
                 final DataCell cell = row.cells[dataColumnIndex];
-                //dataRows[rowIndex].children![displayColumnIndex]
 
                 var c = _buildDataCell(
                     context: context,
@@ -789,18 +785,18 @@ class DataTable2 extends DataTable {
                 if (displayColumnIndex < actualFixedColumns) {
                   if (rowIndex + 1 < actualFixedRows) {
                     fixedCornerRows![rowIndex + 1]
-                        .children![displayColumnIndex] = c;
+                        .children[displayColumnIndex] = c;
                   } else {
                     fixedColumnsRows![rowIndex - skipRows]
-                        .children![displayColumnIndex] = c;
+                        .children[displayColumnIndex] = c;
                   }
                 } else {
                   if (rowIndex + 1 < actualFixedRows) {
                     fixedRows![rowIndex + 1]
-                        .children![displayColumnIndex - actualFixedColumns] = c;
+                        .children[displayColumnIndex - actualFixedColumns] = c;
                   } else {
                     coreRows![rowIndex - skipRows]
-                        .children![displayColumnIndex - actualFixedColumns] = c;
+                        .children[displayColumnIndex - actualFixedColumns] = c;
                   }
                 }
 
@@ -819,7 +815,7 @@ class DataTable2 extends DataTable {
                 : null;
 
             bool isRowsEmpty(List<TableRow>? rows) {
-              return rows == null || rows.isEmpty || rows[0].children!.isEmpty;
+              return rows == null || rows.isEmpty || rows[0].children.isEmpty;
             }
 
             var coreTable = Table(
@@ -1039,7 +1035,7 @@ class DataTable2 extends DataTable {
       tableColumns[0] = FixedColumnWidth(checkBoxWidth);
 
       // Create heading twice, in the heading row used as back-up for the case of no data and any of the xxx_rows table
-      headingRow.children![0] = _buildCheckbox(
+      headingRow.children[0] = _buildCheckbox(
           context: context,
           checked: someChecked ? null : allChecked,
           onRowTap: null,
@@ -1050,13 +1046,13 @@ class DataTable2 extends DataTable {
           rowHeight: headingHeight);
 
       if (fixedCornerRows != null) {
-        fixedCornerRows[0].children![0] = headingRow.children![0];
+        fixedCornerRows[0].children[0] = headingRow.children[0];
       } else if (fixedColumnRows != null) {
-        fixedColumnRows[0].children![0] = headingRow.children![0];
+        fixedColumnRows[0].children[0] = headingRow.children[0];
       } else if (fixedRows != null) {
-        fixedRows[0].children![0] = headingRow.children![0];
+        fixedRows[0].children[0] = headingRow.children[0];
       } else {
-        coreRows![0].children![0] = headingRow.children![0];
+        coreRows![0].children[0] = headingRow.children[0];
       }
 
       var skipRows = actualFixedRows == 1
@@ -1086,13 +1082,13 @@ class DataTable2 extends DataTable {
                 : defaultDataRowHeight);
 
         if (fixedCornerRows != null && rowIndex < fixedCornerRows.length - 1) {
-          fixedCornerRows[rowIndex + 1].children![0] = x;
+          fixedCornerRows[rowIndex + 1].children[0] = x;
         } else if (fixedColumnRows != null) {
-          fixedColumnRows[rowIndex - skipRows].children![0] = x;
+          fixedColumnRows[rowIndex - skipRows].children[0] = x;
         } else if (fixedRows != null && rowIndex < fixedRows.length - 1) {
-          fixedRows[rowIndex + 1].children![0] = x;
+          fixedRows[rowIndex + 1].children[0] = x;
         } else {
-          coreRows![rowIndex - skipRows].children![0] = x;
+          coreRows![rowIndex - skipRows].children[0] = x;
         }
 
         rowIndex += 1;
@@ -1438,14 +1434,23 @@ class SyncedScrollControllers extends StatefulWidget {
       {super.key,
       required this.builder,
       this.scrollController,
-      this.sc12toSc11Position = false});
+      this.sc12toSc11Position = false,
+      this.horizontalScrollController,
+      this.sc22toSc21Position = false});
 
   /// One of the controllers (sc11) won't be created by this widget
   /// but rather use externally provided one
   final ScrollController? scrollController;
 
-  /// Whether to set sc12 initison offset to the value from sc11
+  /// One of the controllers (sc21) won't be created by this widget
+  /// but rather use externally provided one
+  final ScrollController? horizontalScrollController;
+
+  /// Whether to set sc12 initial offset to the value from sc11
   final bool sc12toSc11Position;
+
+  /// Whether to set sc22 initial offset to the value from sc21
+  final bool sc22toSc21Position;
 
   /// Positions of 2 pairs of scroll controllers (sc11|sc12 and sc21|sc22)
   /// will be synchronized, attached scrollables will copy the positions
@@ -1463,7 +1468,7 @@ class SyncedScrollControllers extends StatefulWidget {
 class SyncedScrollControllersState extends State<SyncedScrollControllers> {
   ScrollController? _sc11;
   late ScrollController _sc12;
-  late ScrollController _sc21;
+  ScrollController? _sc21;
   late ScrollController _sc22;
 
   final List<void Function()> _listeners = [];
@@ -1500,14 +1505,25 @@ class SyncedScrollControllersState extends State<SyncedScrollControllers> {
       _sc11 = ScrollController();
     }
 
+    var horizontalOffset =
+        _sc21 == null || _sc21!.positions.isEmpty ? 0.0 : _sc21!.offset;
+    if (widget.horizontalScrollController != null) {
+      _sc21 = widget.horizontalScrollController!;
+      if (_sc21!.positions.isNotEmpty) {
+        offset = _sc21!.offset;
+      }
+    } else {
+      _sc21 = ScrollController();
+    }
+
     _sc12 = ScrollController(
         initialScrollOffset: widget.sc12toSc11Position ? offset : 0.0);
-
-    _sc21 = ScrollController();
-    _sc22 = ScrollController();
+    _sc22 = ScrollController(
+        initialScrollOffset:
+            widget.sc22toSc21Position ? horizontalOffset : 0.0);
 
     _syncScrollControllers(_sc11!, _sc12);
-    _syncScrollControllers(_sc21, _sc22);
+    _syncScrollControllers(_sc21!, _sc22);
   }
 
   void _disposeOrUnsubscribe() {
@@ -1517,8 +1533,14 @@ class SyncedScrollControllersState extends State<SyncedScrollControllers> {
       _sc11?.dispose();
     }
     _sc12.dispose();
-    _sc21.dispose();
+
+    if (widget.horizontalScrollController == _sc21) {
+      _sc21?.removeListener(_listeners[0]);
+    } else {
+      _sc21?.dispose();
+    }
     _sc22.dispose();
+
     _listeners.clear();
   }
 
@@ -1548,5 +1570,57 @@ class SyncedScrollControllersState extends State<SyncedScrollControllers> {
 
   @override
   Widget build(BuildContext context) =>
-      widget.builder(context, _sc11!, _sc12, _sc21, _sc22);
+      widget.builder(context, _sc11!, _sc12, _sc21!, _sc22);
+}
+
+// TODO: revert back to SDK's TableRowInkWell as soon as it has secondary taps added
+class _TableRowInkWell extends InkResponse {
+  /// Creates an ink well for a table row.
+  const _TableRowInkWell({
+    super.child,
+    super.onTap,
+    super.onDoubleTap,
+    super.onLongPress,
+    super.onSecondaryTap,
+    super.onSecondaryTapDown,
+    super.overlayColor,
+  }) : super(
+          containedInkWell: true,
+          highlightShape: BoxShape.rectangle,
+        );
+
+  @override
+  RectCallback getRectCallback(RenderBox referenceBox) {
+    return () {
+      RenderObject cell = referenceBox;
+      AbstractNode? table = cell.parent;
+      final Matrix4 transform = Matrix4.identity();
+      while (table is RenderObject && table is! RenderTable) {
+        table.applyPaintTransform(cell, transform);
+        assert(table == cell.parent);
+        cell = table;
+        table = table.parent;
+      }
+      if (table is RenderTable) {
+        final TableCellParentData cellParentData =
+            cell.parentData! as TableCellParentData;
+        assert(cellParentData.y != null);
+        final Rect rect = table.getRowBox(cellParentData.y!);
+        // The rect is in the table's coordinate space. We need to change it to the
+        // TableRowInkWell's coordinate space.
+        table.applyPaintTransform(cell, transform);
+        final Offset? offset = MatrixUtils.getAsTranslation(transform);
+        if (offset != null) {
+          return rect.shift(-offset);
+        }
+      }
+      return Rect.zero;
+    };
+  }
+
+  @override
+  bool debugCheckContext(BuildContext context) {
+    assert(debugCheckHasTable(context));
+    return super.debugCheckContext(context);
+  }
 }
