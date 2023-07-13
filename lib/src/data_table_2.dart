@@ -64,7 +64,8 @@ class DataRow2 extends DataRow {
       this.onDoubleTap,
       super.onLongPress,
       this.onSecondaryTap,
-      this.onSecondaryTapDown});
+      this.onSecondaryTapDown,
+      this.leading});
 
   DataRow2.byIndex(
       {int? index,
@@ -77,7 +78,8 @@ class DataRow2 extends DataRow {
       this.onDoubleTap,
       super.onLongPress,
       this.onSecondaryTap,
-      this.onSecondaryTapDown})
+      this.onSecondaryTapDown,
+      this.leading})
       : super.byIndex(index: index);
 
   /// Specific row height, which will be used only if provided.
@@ -98,6 +100,9 @@ class DataRow2 extends DataRow {
 
   // /// Row long press handler, won't be called if tapped cell has any tap event handlers
   // final GestureLongPressCallback? onLongPress;
+
+  /// leading widget, replaces the checkbox. can be used to customize the checkbox.
+  final Widget? leading;
 }
 
 /// In-place replacement of standard [DataTable] widget, mimics it API.
@@ -1121,22 +1126,23 @@ class DataTable2 extends DataTable {
 
       var rowIndex = 0;
       for (final DataRow row in rows) {
-        var x = _buildCheckbox(
-            context: context,
-            checked: row.selected,
-            onRowTap: () {
-              if (row is DataRow2 && row.onTap != null) {
-                row.onTap?.call();
-              } else {
-                row.onSelectChanged?.call(!row.selected);
-              }
-            },
-            onCheckboxChanged: row.onSelectChanged,
-            overlayColor: row.color ?? effectiveDataRowColor,
-            tristate: false,
-            rowHeight: rows[rowIndex] is DataRow2
-                ? (rows[rowIndex] as DataRow2).specificRowHeight
-                : null);
+        var x = (row is DataRow2 ? row.leading : null) ??
+            _buildCheckbox(
+                context: context,
+                checked: row.selected,
+                onRowTap: () {
+                  if (row is DataRow2 && row.onTap != null) {
+                    row.onTap?.call();
+                  } else {
+                    row.onSelectChanged?.call(!row.selected);
+                  }
+                },
+                onCheckboxChanged: row.onSelectChanged,
+                overlayColor: row.color ?? effectiveDataRowColor,
+                tristate: false,
+                rowHeight: rows[rowIndex] is DataRow2
+                    ? (rows[rowIndex] as DataRow2).specificRowHeight
+                    : null);
 
         if (fixedCornerRows != null && rowIndex < fixedCornerRows.length - 1) {
           fixedCornerRows[rowIndex + 1].children[0] = x;
