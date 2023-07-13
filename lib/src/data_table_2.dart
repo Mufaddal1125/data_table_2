@@ -8,7 +8,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 bool dataTableShowLogs = true;
 
@@ -116,7 +115,7 @@ class DataTable2 extends DataTable {
     super.onSelectAll,
     super.decoration,
     super.dataRowColor,
-    super.dataRowHeight,
+    this.dataRowHeight,
     super.dataTextStyle,
     super.headingRowColor,
     this.fixedColumnsColor,
@@ -130,9 +129,12 @@ class DataTable2 extends DataTable {
     super.showCheckboxColumn = true,
     super.showBottomBorder = false,
     super.dividerThickness,
+    super.clipBehavior,
     this.minWidth,
     this.scrollController,
     this.horizontalScrollController,
+    this.isVerticalScrollBarVisible,
+    this.isHorizontalScrollBarVisible,
     this.empty,
     this.border,
     this.smRatio = 0.67,
@@ -144,14 +146,7 @@ class DataTable2 extends DataTable {
     this.verticalScrollPhysics,
     required super.rows,
   })  : assert(fixedLeftColumns >= 0),
-        assert(fixedTopRows >= 0) {
-    // // Fix for #111, syncrhonize scroll position for left fixed column with core
-    // // Works fine if there's scrollCongtroller provided externally, allows to avoid jumping
-    // _leftColumnVerticalContoller = ScrollController(
-    //     initialScrollOffset: _coreVerticalController.positions.isNotEmpty
-    //         ? _coreVerticalController.offset
-    //         : 0.0);
-  }
+        assert(fixedTopRows >= 0);
 
   static final LocalKey _headingRowKey = UniqueKey();
 
@@ -205,11 +200,29 @@ class DataTable2 extends DataTable {
   /// have the ability to slightly scroll up the bototm row to avoid the obstruction)
   final double? bottomMargin;
 
+  /// The height of each row (excluding the row that contains column headings).
+  ///
+  /// If null, [DataTableThemeData.dataRowMinHeight] is used. This value defaults
+  /// to [kMinInteractiveDimension] to adhere to the Material Design
+  /// specifications.
+  ///
+  /// Note that unlike stock [DataTable] from the SDK there's no capability to define min/max
+  /// height of a row, corresponding properties are ingored. This is an implementation tradeoff
+  /// making it possible to have performant sticky columns.
+  @override
+  final double? dataRowHeight;
+
   /// Exposes scroll controller of the SingleChildScrollView that makes data rows vertically scrollable
   final ScrollController? scrollController;
 
   /// Exposes scroll controller of the SingleChildScrollView that makes data rows horizontally scrollable
   final ScrollController? horizontalScrollController;
+
+  /// Determines whether the vertical scroll bar is visible, for iOS takes value from scrollbarTheme when null
+  final bool? isVerticalScrollBarVisible;
+
+  /// Determines whether the horizontal scroll bar is visible, for iOS takes value from scrollbarTheme when null
+  final bool? isHorizontalScrollBarVisible;
 
   /// Placeholder widget which is displayed whenever the data rows are empty.
   /// The widget will be displayed below column
@@ -257,6 +270,21 @@ class DataTable2 extends DataTable {
   /// scroll physics for the core of the table (i.e. the part that contains data rows)
   final ScrollPhysics? verticalScrollPhysics;
 
+  (double, double) getMinMaxRowHeight(DataTableThemeData dataTableTheme) {
+    final double effectiveDataRowMinHeight = dataRowHeight ??
+        dataTableTheme.dataRowMinHeight ??
+        kMinInteractiveDimension;
+    // Reverting min/max csupport to single row height value in order not to have troubles
+    // with sticky column cells
+    // https://github.com/maxim-saplin/data_table_2/issues/191
+    // final double effectiveDataRowMaxHeight = dataRowMaxHeight ??
+    //     dataTableTheme.dataRowMaxHeight ??
+    //     dataTableTheme.dataRowMaxHeight ??
+    //     kMinInteractiveDimension;
+
+    return (effectiveDataRowMinHeight, effectiveDataRowMinHeight);
+  }
+
   Widget _buildCheckbox(
       {required BuildContext context,
       required bool? checked,
@@ -264,28 +292,35 @@ class DataTable2 extends DataTable {
       required ValueChanged<bool?>? onCheckboxChanged,
       required MaterialStateProperty<Color?>? overlayColor,
       required bool tristate,
-      required double rowHeight}) {
-    final ThemeData themeData = Theme.of(context);
+      required double? rowHeight}) {
+    final DataTableThemeData dataTableTheme = DataTableTheme.of(context);
+
     final double effectiveHorizontalMargin = horizontalMargin ??
-        themeData.dataTableTheme.horizontalMargin ??
+        dataTableTheme.horizontalMargin ??
         _horizontalMargin;
 
-    Widget contents = Semantics(
-      container: true,
-      child: Container(
-        height: rowHeight,
+    final (effectiveDataRowMinHeight, effectiveDataRowMaxHeight) =
+        getMinMaxRowHeight(dataTableTheme);
+
+    Widget wrapInContainer(Widget child) => Container(
+        constraints: BoxConstraints(
+            minHeight: rowHeight ?? effectiveDataRowMinHeight,
+            maxHeight: rowHeight ?? effectiveDataRowMaxHeight),
         padding: EdgeInsetsDirectional.only(
           start: checkboxHorizontalMargin ?? effectiveHorizontalMargin,
           end: (checkboxHorizontalMargin ?? effectiveHorizontalMargin) / 2.0,
         ),
-        child: Center(
-          child: Checkbox(
-            value: checked,
-            onChanged: onCheckboxChanged,
-            tristate: tristate,
-          ),
+        child: child);
+
+    Widget contents = Semantics(
+      container: true,
+      child: wrapInContainer(Center(
+        child: Checkbox(
+          value: checked,
+          onChanged: onCheckboxChanged,
+          tristate: tristate,
         ),
-      ),
+      )),
     );
     if (onRowTap != null) {
       contents = TableRowInkWell(
@@ -365,7 +400,6 @@ class DataTable2 extends DataTable {
       required bool numeric,
       required bool placeholder,
       required bool showEditIcon,
-      required double defaultDataRowHeight,
       required GestureTapCallback? onTap,
       required GestureTapCallback? onDoubleTap,
       required GestureLongPressCallback? onLongPress,
@@ -379,6 +413,8 @@ class DataTable2 extends DataTable {
       required VoidCallback? onSelectChanged,
       required MaterialStateProperty<Color?>? overlayColor}) {
     final ThemeData themeData = Theme.of(context);
+    final DataTableThemeData dataTableTheme = DataTableTheme.of(context);
+
     if (showEditIcon) {
       const Widget icon = Icon(Icons.edit, size: 18.0);
       label = Expanded(child: label);
@@ -389,14 +425,18 @@ class DataTable2 extends DataTable {
     }
 
     final TextStyle effectiveDataTextStyle = dataTextStyle ??
+        dataTableTheme.dataTextStyle ??
         themeData.dataTableTheme.dataTextStyle ??
         themeData.textTheme.bodyMedium!;
-    final double effectiveDataRowHeight =
-        specificRowHeight ?? defaultDataRowHeight;
+
+    final (effectiveDataRowMinHeight, effectiveDataRowMaxHeight) =
+        getMinMaxRowHeight(dataTableTheme);
 
     label = Container(
       padding: padding,
-      height: effectiveDataRowHeight,
+      constraints: BoxConstraints(
+          minHeight: specificRowHeight ?? effectiveDataRowMinHeight,
+          maxHeight: specificRowHeight ?? effectiveDataRowMaxHeight),
       alignment:
           numeric ? Alignment.centerRight : AlignmentDirectional.centerStart,
       child: DefaultTextStyle(
@@ -444,7 +484,7 @@ class DataTable2 extends DataTable {
         onRowSecondaryTap != null ||
         onRowSecondaryTapDown != null) {
       // row level
-      label = _TableRowInkWell(
+      label = TableRowInkWell(
         onTap: onRowTap ?? onSelectChanged,
         onDoubleTap: onRowDoubleTap,
         onLongPress: onRowLongPress,
@@ -497,10 +537,6 @@ class DataTable2 extends DataTable {
     final double effectiveHeadingRowHeight = headingRowHeight ??
         theme.dataTableTheme.headingRowHeight ??
         _headingRowHeight;
-
-    final double defaultDataRowHeight = dataRowHeight ??
-        theme.dataTableTheme.dataRowHeight ??
-        kMinInteractiveDimension;
 
     final tableColumnWidths = List<TableColumnWidth>.filled(
         columns.length + (displayCheckboxColumn ? 1 : 0),
@@ -655,7 +691,6 @@ class DataTable2 extends DataTable {
         fixedColumnsRows,
         rows,
         actualFixedRows,
-        defaultDataRowHeight,
         effectiveDataRowColor);
 
     var builder = LayoutBuilder(builder: (context, constraints) {
@@ -758,7 +793,6 @@ class DataTable2 extends DataTable {
                 var c = _buildDataCell(
                     context: context,
                     padding: padding,
-                    defaultDataRowHeight: defaultDataRowHeight,
                     specificRowHeight:
                         row is DataRow2 ? row.specificRowHeight : null,
                     label: cell.child,
@@ -915,7 +949,21 @@ class DataTable2 extends DataTable {
                           children: [t, SizedBox(height: bottomMargin!)])
                       : t;
 
+              var scrollBarTheme = Theme.of(context).scrollbarTheme;
+              // flutter/lib/src/material/scrollbar.dart, scrollbar decides whther to create  Cupertino or Material scrollbar, Cupertino ignores themes
+              var isiOS = Theme.of(context).platform == TargetPlatform.iOS;
+
+              // For iOS/Cupertino scrollbar
               fixedRowsAndCoreCol = Scrollbar(
+                  thumbVisibility: isHorizontalScrollBarVisible ??
+                      (isiOS
+                          ? scrollBarTheme.thumbVisibility
+                              ?.resolve({MaterialState.hovered})
+                          : null),
+                  thickness: (isiOS
+                      ? scrollBarTheme.thickness
+                          ?.resolve({MaterialState.hovered})
+                      : null),
                   controller: coreHorizontalController,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     ScrollConfiguration(
@@ -936,14 +984,25 @@ class DataTable2 extends DataTable {
                                   ))),
                     Flexible(
                         fit: FlexFit.tight,
-                        child: SingleChildScrollView(
+                        child: Scrollbar(
+                            thumbVisibility: isVerticalScrollBarVisible ??
+                                (isiOS
+                                    ? scrollBarTheme.thumbVisibility
+                                        ?.resolve({MaterialState.hovered})
+                                    : null),
+                            thickness: (isiOS
+                                ? scrollBarTheme.thickness
+                                    ?.resolve({MaterialState.hovered})
+                                : null),
                             controller: coreVerticalController,
-                            scrollDirection: Axis.vertical,
-                            physics: verticalScrollPhysics,
                             child: SingleChildScrollView(
-                                controller: coreHorizontalController,
-                                scrollDirection: Axis.horizontal,
-                                child: addBottomMargin(coreTable))))
+                                physics: verticalScrollPhysics,
+                                controller: coreVerticalController,
+                                scrollDirection: Axis.vertical,
+                                child: SingleChildScrollView(
+                                    controller: coreHorizontalController,
+                                    scrollDirection: Axis.horizontal,
+                                    child: addBottomMargin(coreTable)))))
                   ]));
 
               fixedColumnAndCornerCol = fixedTopLeftCornerTable == null &&
@@ -1024,7 +1083,6 @@ class DataTable2 extends DataTable {
       List<TableRow>? fixedColumnRows,
       List<DataRow> rows,
       int actualFixedRows,
-      double defaultDataRowHeight,
       MaterialStateProperty<Color?>? effectiveDataRowColor) {
     double checkBoxWidth = 0;
 
@@ -1076,10 +1134,9 @@ class DataTable2 extends DataTable {
             onCheckboxChanged: row.onSelectChanged,
             overlayColor: row.color ?? effectiveDataRowColor,
             tristate: false,
-            rowHeight: ((rows[rowIndex] is DataRow2) &&
-                    (rows[rowIndex] as DataRow2).specificRowHeight != null)
-                ? (rows[rowIndex] as DataRow2).specificRowHeight!
-                : defaultDataRowHeight);
+            rowHeight: rows[rowIndex] is DataRow2
+                ? (rows[rowIndex] as DataRow2).specificRowHeight
+                : null);
 
         if (fixedCornerRows != null && rowIndex < fixedCornerRows.length - 1) {
           fixedCornerRows[rowIndex + 1].children[0] = x;
@@ -1571,56 +1628,4 @@ class SyncedScrollControllersState extends State<SyncedScrollControllers> {
   @override
   Widget build(BuildContext context) =>
       widget.builder(context, _sc11!, _sc12, _sc21!, _sc22);
-}
-
-// TODO: revert back to SDK's TableRowInkWell as soon as it has secondary taps added
-class _TableRowInkWell extends InkResponse {
-  /// Creates an ink well for a table row.
-  const _TableRowInkWell({
-    super.child,
-    super.onTap,
-    super.onDoubleTap,
-    super.onLongPress,
-    super.onSecondaryTap,
-    super.onSecondaryTapDown,
-    super.overlayColor,
-  }) : super(
-          containedInkWell: true,
-          highlightShape: BoxShape.rectangle,
-        );
-
-  @override
-  RectCallback getRectCallback(RenderBox referenceBox) {
-    return () {
-      RenderObject cell = referenceBox;
-      AbstractNode? table = cell.parent;
-      final Matrix4 transform = Matrix4.identity();
-      while (table is RenderObject && table is! RenderTable) {
-        table.applyPaintTransform(cell, transform);
-        assert(table == cell.parent);
-        cell = table;
-        table = table.parent;
-      }
-      if (table is RenderTable) {
-        final TableCellParentData cellParentData =
-            cell.parentData! as TableCellParentData;
-        assert(cellParentData.y != null);
-        final Rect rect = table.getRowBox(cellParentData.y!);
-        // The rect is in the table's coordinate space. We need to change it to the
-        // TableRowInkWell's coordinate space.
-        table.applyPaintTransform(cell, transform);
-        final Offset? offset = MatrixUtils.getAsTranslation(transform);
-        if (offset != null) {
-          return rect.shift(-offset);
-        }
-      }
-      return Rect.zero;
-    };
-  }
-
-  @override
-  bool debugCheckContext(BuildContext context) {
-    assert(debugCheckHasTable(context));
-    return super.debugCheckContext(context);
-  }
 }
