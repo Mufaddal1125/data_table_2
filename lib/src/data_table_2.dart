@@ -112,6 +112,7 @@ class DataRow2 extends DataRow {
 /// relative column sizes (setting them to S, M and L). [DataRow2] provides
 /// row-level tap event handlers.
 class DataTable2 extends DataTable {
+
   DataTable2({
     super.key,
     required super.columns,
@@ -149,6 +150,7 @@ class DataTable2 extends DataTable {
     this.sortArrowAnimationDuration = const Duration(milliseconds: 150),
     this.sortArrowIcon = Icons.arrow_upward,
     this.verticalScrollPhysics,
+    this.verticalTableFit,
     required super.rows,
   })  : assert(fixedLeftColumns >= 0),
         assert(fixedTopRows >= 0);
@@ -274,6 +276,13 @@ class DataTable2 extends DataTable {
 
   /// scroll physics for the core of the table (i.e. the part that contains data rows)
   final ScrollPhysics? verticalScrollPhysics;
+
+  /// Fit of the table according to the available height
+  /// If set to [FlexFit.tight] the table will try to fill all available height
+  /// If set to [FlexFit.loose] the table will try to shrink to fit the content
+  /// By default the table will try to fill all available height
+  final FlexFit? verticalTableFit;
+
 
   (double, double) getMinMaxRowHeight(DataTableThemeData dataTableTheme) {
     final double effectiveDataRowMinHeight = dataRowHeight ??
@@ -988,7 +997,7 @@ class DataTable2 extends DataTable {
                                             previousValue + value),
                                   ))),
                     Flexible(
-                        fit: FlexFit.tight,
+                        fit: verticalTableFit ?? FlexFit.tight,
                         child: Scrollbar(
                             thumbVisibility: isVerticalScrollBarVisible ??
                                 (isiOS
