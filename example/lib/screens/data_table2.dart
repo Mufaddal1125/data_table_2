@@ -23,6 +23,8 @@ class DataTable2DemoState extends State<DataTable2Demo> {
   int? _sortColumnIndex;
   late DessertDataSource _dessertsDataSource;
   bool _initialized = false;
+  bool showCustomArrow = false;
+  bool sortArrowsAlwaysVisible = false;
 
   @override
   void didChangeDependencies() {
@@ -62,22 +64,49 @@ class DataTable2DemoState extends State<DataTable2Demo> {
 
   @override
   Widget build(BuildContext context) {
+    const alwaysShowArrows = false;
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Theme(
           // Using themes to override scroll bar appearence, note that iOS scrollbars do not support color overrides
           data: ThemeData(
+              iconTheme: const IconThemeData(color: Colors.white),
               scrollbarTheme: ScrollbarThemeData(
-            thickness: MaterialStateProperty.all(5),
-            // thumbVisibility: MaterialStateProperty.all(true),
-            // thumbColor: MaterialStateProperty.all<Color>(Colors.yellow)
-          )),
+                thickness: MaterialStateProperty.all(5),
+                // thumbVisibility: MaterialStateProperty.all(true),
+                // thumbColor: MaterialStateProperty.all<Color>(Colors.yellow)
+              )),
           child: DataTable2(
             // Forcing all scrallbars to be visible, alternatively themes can be used (see above)
+            headingRowColor:
+                MaterialStateColor.resolveWith((states) => Colors.grey[850]!),
+            headingTextStyle: const TextStyle(color: Colors.white),
+            headingCheckboxTheme: const CheckboxThemeData(
+                side: BorderSide(color: Colors.white, width: 2.0)),
+            //checkboxAlignment: Alignment.topLeft,
             isHorizontalScrollBarVisible: true,
             isVerticalScrollBarVisible: true,
             columnSpacing: 12,
             horizontalMargin: 12,
+            sortArrowBuilder: getCurrentRouteOption(context) == custArrows
+                ? (ascending, sorted) => sorted || alwaysShowArrows
+                    ? Stack(
+                        children: [
+                          Padding(
+                              padding: const EdgeInsets.only(right: 0),
+                              child: _SortIcon(
+                                  ascending: true,
+                                  active: sorted && ascending)),
+                          Padding(
+                              padding: const EdgeInsets.only(left: 10),
+                              child: _SortIcon(
+                                  ascending: false,
+                                  active: sorted && !ascending)),
+                        ],
+                      )
+                    : null
+                : null,
             border: getCurrentRouteOption(context) == fixedColumnWidth
                 ? TableBorder(
                     top: const BorderSide(color: Colors.black),
@@ -172,6 +201,22 @@ class DataTable2DemoState extends State<DataTable2Demo> {
                 : List<DataRow>.generate(_dessertsDataSource.rowCount,
                     (index) => _dessertsDataSource.getRow(index)),
           )),
+    );
+  }
+}
+
+class _SortIcon extends StatelessWidget {
+  final bool ascending;
+  final bool active;
+
+  const _SortIcon({required this.ascending, required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(
+      ascending ? Icons.arrow_drop_up_rounded : Icons.arrow_drop_down_rounded,
+      size: 28,
+      color: active ? Colors.cyan : null,
     );
   }
 }
