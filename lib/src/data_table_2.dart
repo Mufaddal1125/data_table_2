@@ -128,8 +128,11 @@ class DataTable2 extends DataTable {
     this.fixedCornerColor,
     super.headingRowHeight,
     super.headingTextStyle,
+    this.headingCheckboxTheme,
+    this.datarowCheckboxTheme,
     super.horizontalMargin,
     super.checkboxHorizontalMargin,
+    this.checkboxAlignment = Alignment.center,
     this.bottomMargin,
     super.columnSpacing,
     super.showCheckboxColumn = true,
@@ -151,6 +154,8 @@ class DataTable2 extends DataTable {
     this.sortArrowIcon = Icons.arrow_upward,
     this.verticalScrollPhysics,
     this.verticalTableFit,
+    this.sortArrowBuilder,
+    this.headingRowDecoration,
     required super.rows,
   })  : assert(fixedLeftColumns >= 0),
         assert(fixedTopRows >= 0);
@@ -194,18 +199,43 @@ class DataTable2 extends DataTable {
   final Duration sortArrowAnimationDuration;
 
   /// Icon to be displayed when sorting is applied to a column.
-  /// If not set, the default icon is [Icons.arrow_upward]
+  /// If not set, the default icon is [Icons.arrow_upward].
+  /// When set always overrides/preceeds default arrow icons.
   final IconData sortArrowIcon;
+
+  /// A builder for the sort arrow widget. Can be used in combination with [sortArrowAlwaysVisible] for a custom
+  /// sort arrow behavior. If this is used [sortArrowIcon], [sortArrowAnimationDuration] will be ignored.
+  final Widget? Function(bool ascending, bool sorted)? sortArrowBuilder;
 
   /// If set, the table will stop shrinking below the threshold and provide
   /// horizontal scrolling. Useful for the cases with narrow screens (e.g. portrait phone orientation)
   /// and lots of columns (that get messed with little space)
   final double? minWidth;
 
+  /// Overrides theme of the checkbox that is displayed in the leftmost corner
+  /// of the heading (should checkboxes be enabled)
+  final CheckboxThemeData? headingCheckboxTheme;
+
+  /// Alignment of the checkbox if it is displayed
+  /// Defaults to the [Alignment.center]
+  final Alignment checkboxAlignment;
+
+  /// Overrides theme of the checkbox that is displayed in the checkbox column
+  /// in each data row (should checkboxes be enabled)
+  final CheckboxThemeData? datarowCheckboxTheme;
+
   /// If set the table will have empty space added after the the last row and allow scroll the
   /// core of the table higher (e.g. if you would like to have iOS navigation UI at the bottom overlapping the table and
   /// have the ability to slightly scroll up the bototm row to avoid the obstruction)
   final double? bottomMargin;
+
+  /// Overrides default [BoxDecoration](bottom border) applied to heading row.
+  /// When both [headerRowColor] and this porperty are provided:
+  /// - [headingRowDecoration] takes precedence if there're 0 or 1 fixed rows
+  /// - [headerRowColor] is applied to fixed top forws starting from the second
+  /// When there're both fixed top rows and fixed left columns with [fixedCornerColor] provided,
+  /// this decoration overrides top left cornner cell color.
+  final BoxDecoration? headingRowDecoration;
 
   /// The height of each row (excluding the row that contains column headings).
   ///
@@ -305,6 +335,7 @@ class DataTable2 extends DataTable {
       required VoidCallback? onRowTap,
       required ValueChanged<bool?>? onCheckboxChanged,
       required MaterialStateProperty<Color?>? overlayColor,
+      required CheckboxThemeData? checkboxTheme,
       required bool tristate,
       required double? rowHeight}) {
     final DataTableThemeData dataTableTheme = DataTableTheme.of(context);
@@ -317,6 +348,7 @@ class DataTable2 extends DataTable {
         getMinMaxRowHeight(dataTableTheme);
 
     Widget wrapInContainer(Widget child) => Container(
+        alignment: checkboxAlignment,
         constraints: BoxConstraints(
             minHeight: rowHeight ?? effectiveDataRowMinHeight,
             maxHeight: rowHeight ?? effectiveDataRowMaxHeight),
@@ -328,13 +360,15 @@ class DataTable2 extends DataTable {
 
     Widget contents = Semantics(
       container: true,
-      child: wrapInContainer(Center(
-        child: Checkbox(
-          value: checked,
-          onChanged: onCheckboxChanged,
-          tristate: tristate,
-        ),
-      )),
+      child: wrapInContainer(
+        Theme(
+            data: ThemeData(checkboxTheme: checkboxTheme),
+            child: Checkbox(
+              value: checked,
+              onChanged: onCheckboxChanged,
+              tristate: tristate,
+            )),
+      ),
     );
     if (onRowTap != null) {
       contents = TableRowInkWell(
@@ -359,17 +393,21 @@ class DataTable2 extends DataTable {
       required double effectiveHeadingRowHeight,
       required MaterialStateProperty<Color?>? overlayColor}) {
     final ThemeData themeData = Theme.of(context);
+
+    var customArrows =
+        sortArrowBuilder != null ? sortArrowBuilder!(ascending, sorted) : null;
     label = Row(
       textDirection: numeric ? TextDirection.rtl : null,
       children: <Widget>[
         Flexible(child: label),
         if (onSort != null) ...<Widget>[
-          _SortArrow(
-            visible: sorted,
-            up: sorted ? ascending : null,
-            duration: sortArrowAnimationDuration,
-            sortArrowIcon: sortArrowIcon,
-          ),
+          customArrows ??
+              _SortArrow(
+                visible: sorted,
+                up: sorted ? ascending : null,
+                duration: sortArrowAnimationDuration,
+                sortArrowIcon: sortArrowIcon,
+              ),
           const SizedBox(width: _sortArrowPadding),
         ],
       ],
@@ -1114,6 +1152,7 @@ class DataTable2 extends DataTable {
           onCheckboxChanged: (bool? checked) =>
               _handleSelectAll(checked, someChecked),
           overlayColor: null,
+          checkboxTheme: headingCheckboxTheme,
           tristate: true,
           rowHeight: headingHeight);
 
@@ -1146,6 +1185,7 @@ class DataTable2 extends DataTable {
                     row.onSelectChanged?.call(!row.selected);
                   }
                 },
+                checkboxTheme: datarowCheckboxTheme,
                 onCheckboxChanged: row.onSelectChanged,
                 overlayColor: row.color ?? effectiveDataRowColor,
                 tristate: false,
@@ -1342,6 +1382,15 @@ class DataTable2 extends DataTable {
               ))
             : null,
         color: effectiveHeadingRowColor?.resolve(<MaterialState>{}),
+      ).copyWith(
+        color: headingRowDecoration?.color,
+        image: headingRowDecoration?.image,
+        border: headingRowDecoration?.border,
+        borderRadius: headingRowDecoration?.borderRadius,
+        boxShadow: headingRowDecoration?.boxShadow,
+        gradient: headingRowDecoration?.gradient,
+        backgroundBlendMode: headingRowDecoration?.backgroundBlendMode,
+        shape: headingRowDecoration?.shape,
       ),
       children: List<Widget>.filled(numberOfCols, const _NullWidget()),
     );

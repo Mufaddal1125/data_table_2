@@ -1,3 +1,21 @@
+## 2.5.8
+- Added `headingRowDecoration` property to allow more customizations to heading row style (PR #220)
+
+## 2.5.7
+- `availableRowsPerPage` inline docs update
+- Fix wrong parameter name in AsyncDataTableSource.getRow method (PR #208)
+- PaginatedDataTable2 and AsyncPaginatedDataTable2 received extra params (headingTextStyle, dataTextStyle, headingCheckboxTheme, datarowCheckboxTheme)
+
+## 2.5.6
+- Fixed `DataRow2.specificRowHeight` when used with `AsyncPaginatedDataTable2`
+
+## 2.5.5
+- Added `checkboxAlignment` to widgets
+- Customizing checkboxes in DataTable2 via `headingCheckboxTheme` and `datarowCheckboxTheme`
+
+## 2.5.4
+- Custom arrow builder for heading cells (`sortArrowBuilder`)
+
 ## 2.5.3
 - Exposed clipBehavior in DataTable2
 
